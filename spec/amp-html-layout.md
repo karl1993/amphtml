@@ -1,3 +1,4 @@
+<script async custom-element="amp-script" src="https://cdn.ampproject.org/v0/amp-script-0.1.js"></script>
 <!---
 Copyright 2015 The AMP HTML Authors. All Rights Reserved.
 
