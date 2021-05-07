@@ -20,15 +20,15 @@ import {AccessOtherAdapter} from './amp-access-other';
 import {AccessServerAdapter} from './amp-access-server';
 import {AccessServerJwtAdapter} from './amp-access-server-jwt';
 import {AccessVendorAdapter} from './amp-access-vendor';
-import {Deferred} from '../../../src/utils/promise';
+import {Deferred} from '../../../src/core/data-structures/promise';
 import {Services} from '../../../src/services';
 import {assertHttpsUrl, parseQueryString} from '../../../src/url';
 import {dev, user, userAssert} from '../../../src/log';
-import {dict} from '../../../src/utils/object';
+import {dict} from '../../../src/core/types/object';
 import {getLoginUrl, openLoginDialog} from './login-dialog';
 import {getValueForExpr} from '../../../src/json';
 import {isExperimentOn} from '../../../src/experiments';
-import {isObject} from '../../../src/types';
+import {isObject} from '../../../src/core/types';
 import {triggerAnalyticsEvent} from '../../../src/analytics';
 
 /** @const */
@@ -227,13 +227,6 @@ export class AccessSource {
       user().info(TAG, 'Forcing access type: SERVER');
       type = AccessType.SERVER;
     }
-    if (
-      type == AccessType.IFRAME &&
-      !isExperimentOn(this.ampdoc.win, 'amp-access-iframe')
-    ) {
-      user().error(TAG, 'Experiment "amp-access-iframe" is not enabled.');
-      type = AccessType.CLIENT;
-    }
     return type;
   }
 
@@ -278,7 +271,12 @@ export class AccessSource {
    * @private
    */
   analyticsEvent_(eventType) {
-    triggerAnalyticsEvent(this.getRootElement_(), eventType);
+    triggerAnalyticsEvent(
+      this.getRootElement_(),
+      eventType,
+      /** vars */ undefined,
+      /** enableDataVars */ false
+    );
   }
 
   /**

@@ -15,13 +15,13 @@
  */
 'use strict';
 
-const minimist = require('minimist');
-const sourcemaps = require('gulp-sourcemaps');
+const argv = require('minimist')(process.argv.slice(2));
+const fs = require('fs-extra');
+const path = require('path');
+const {getBabelOutputDir} = require('./pre-closure-babel');
 const {VERSION: internalRuntimeVersion} = require('./internal-version');
 
-const argv = minimist(process.argv.slice(2));
-
-function getSourceMapBase() {
+function getSourceMapBase(options) {
   if (argv.sourcemap_url) {
     // Custom sourcemap URLs have placeholder {version} that should be
     // replaced with the actual version. Also, ensure trailing slash exists.
@@ -29,17 +29,32 @@ function getSourceMapBase() {
       .replace(/\{version\}/g, internalRuntimeVersion)
       .replace(/([^/])$/, '$1/');
   }
-  if (argv.fortesting) {
+  if (options.fortesting) {
     return 'http://localhost:8000/';
   }
   return `https://raw.githubusercontent.com/ampproject/amphtml/${internalRuntimeVersion}/`;
 }
 
-function writeSourcemaps() {
-  return sourcemaps.write('.', {
-    sourceRoot: getSourceMapBase(),
+function updatePaths(sourcemaps) {
+  const babelOutputDir = getBabelOutputDir();
+  sourcemaps.sources = sourcemaps.sources.map((source) =>
+    source.startsWith(babelOutputDir)
+      ? path.relative(babelOutputDir, source)
+      : source
+  );
+  if (sourcemaps.file) {
+    sourcemaps.file = path.basename(sourcemaps.file);
+  }
+}
+
+async function writeSourcemaps(sourcemapsFile, options) {
+  const sourcemaps = await fs.readJson(sourcemapsFile);
+  updatePaths(sourcemaps);
+  const extra = {
+    sourceRoot: getSourceMapBase(options),
     includeContent: !!argv.full_sourcemaps,
-  });
+  };
+  await fs.writeJSON(sourcemapsFile, {...sourcemaps, ...extra});
 }
 
 module.exports = {

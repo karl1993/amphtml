@@ -39,7 +39,7 @@ function getExperimentConstant() {
 }
 
 /**
- * Computes options for the minify-replace plugin
+ * Computes options for minify-replace and returns the plugin object.
  *
  * @return {Array<string|Object>}
  */
@@ -56,7 +56,14 @@ function getReplacePlugin() {
     };
   }
 
-  const replacements = [createReplacement('IS_ESM', argv.esm)];
+  // We build on the idea that SxG is an upgrade to the ESM build.
+  // Therefore, all conditions set by ESM will also hold for SxG.
+  // However, we will also need to introduce a separate IS_SxG flag
+  // for conditions only true for SxG.
+  const replacements = [
+    createReplacement('IS_ESM', argv.esm || argv.sxg),
+    createReplacement('IS_SXG', argv.sxg),
+  ];
 
   const experimentConstant = getExperimentConstant();
   if (experimentConstant) {
@@ -66,7 +73,7 @@ function getReplacePlugin() {
   // default each experiment flag constant to false
   Object.keys(experimentsConfig).forEach((experiment) => {
     const experimentDefine =
-      experimentsConfig[experiment]['defineExperimentConstant'];
+      experimentsConfig[experiment]['define_experiment_constant'];
     const flagExists = (element) =>
       element['identifierName'] === experimentDefine;
     // only add default replacement if it already doesn't exist in array
@@ -91,7 +98,47 @@ function getReplacePlugin() {
   return ['minify-replace', {replacements}];
 }
 
+/**
+ * Returns a Babel plugin that replaces the global identifier with the correct
+ * alternative. Used before transforming test code with esbuild.
+ *
+ * @return {Array<string|Object>}
+ */
+function getReplaceGlobalsPlugin() {
+  return [
+    (babel) => {
+      const {types: t} = babel;
+      return {
+        visitor: {
+          ReferencedIdentifier(path) {
+            const {node, scope} = path;
+            if (node.name !== 'global') {
+              return;
+            }
+            if (scope.getBinding('global')) {
+              return;
+            }
+            const possibleNames = ['globalThis', 'self'];
+            // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis#browser_compatibility
+            if (argv.ie) {
+              possibleNames.shift();
+            }
+            const name = possibleNames.find((name) => !scope.getBinding(name));
+            if (!name) {
+              throw path.buildCodeFrameError(
+                'Could not replace `global` with globalThis identifier'
+              );
+            }
+            path.replaceWith(t.identifier(name));
+          },
+        },
+      };
+    },
+  ];
+}
+
 module.exports = {
   getExperimentConstant,
   getReplacePlugin,
+  getReplaceGlobalsPlugin,
 };

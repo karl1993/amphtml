@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import {AmpEvents} from '../../../src/amp-events';
+import {AmpEvents} from '../../../src/core/constants/amp-events';
 import {MASK_SEPARATOR_CHAR, MaskChars, NamedMasks} from './constants';
 import {MaskInterface} from './mask-interface';
-import {dict} from '../../../src/utils/object';
+import {dict} from '../../../src/core/types/object';
 import {factory as inputmaskCustomAliasFactory} from './inputmask-custom-alias';
 import {factory as inputmaskPaymentCardAliasFactory} from './inputmask-payment-card-alias';
 import {requireExternal} from '../../../src/module';
@@ -65,7 +65,7 @@ export class Mask {
    * @param {string} mask
    */
   constructor(element, mask) {
-    this.Inputmask_ = Mask.getInputmask_(element);
+    this.Inputmask_ = this.getInputmask_(element);
 
     this.element_ = element;
 
@@ -108,7 +108,7 @@ export class Mask {
    * @return {function(!Object):!Inputmask}
    * @private visible for testing
    */
-  static getInputmask_(element) {
+  getInputmask_(element) {
     if (this.Inputmask_) {
       return this.Inputmask_;
     }

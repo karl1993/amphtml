@@ -22,16 +22,18 @@
  * Instead, the runtime loads it when encountering an <amp-img>.
  */
 
-import {AmpEvents} from '../../../src/amp-events';
+import {AmpEvents} from '../../../src/core/constants/amp-events';
 import {AutoLightboxEvents} from '../../../src/auto-lightbox';
-import {CommonSignals} from '../../../src/common-signals';
+import {CommonSignals} from '../../../src/core/constants/common-signals';
 import {Services} from '../../../src/services';
 import {
   closestAncestorElementBySelector,
+  dispatchCustomEvent,
   whenUpgradedToCustomElement,
 } from '../../../src/dom';
 import {dev} from '../../../src/log';
-import {toArray} from '../../../src/types';
+import {measureIntersectionNoRoot} from '../../../src/utils/intersection-no-root';
+import {toArray} from '../../../src/core/types/array';
 import {tryParseJson} from '../../../src/json';
 
 const TAG = 'amp-auto-lightbox';
@@ -123,11 +125,13 @@ const getRootNode = (ampdoc) => ampdoc.getRootNode();
 export class Criteria {
   /**
    * @param {!Element} element
+   * @param {number} renderWidth
+   * @param {number} renderHeight
    * @return {boolean}
    */
-  static meetsAll(element) {
+  static meetsAll(element, renderWidth, renderHeight) {
     return (
-      Criteria.meetsSizingCriteria(element) &&
+      Criteria.meetsSizingCriteria(element, renderWidth, renderHeight) &&
       Criteria.meetsTreeShapeCriteria(element)
     );
   }
@@ -151,14 +155,14 @@ export class Criteria {
 
   /**
    * @param {!Element} element
+   * @param {number} renderWidth
+   * @param {number} renderHeight
    * @return {boolean}
    */
-  static meetsSizingCriteria(element) {
-    const {naturalWidth, naturalHeight} = dev().assertElement(
-      element.querySelector('img')
+  static meetsSizingCriteria(element, renderWidth, renderHeight) {
+    const {naturalWidth, naturalHeight} = getMaxNaturalDimensions(
+      dev().assertElement(element.querySelector('img'))
     );
-
-    const {width: renderWidth, height: renderHeight} = element.getLayoutBox();
 
     const viewport = Services.viewportForDoc(element);
     const {width: vw, height: vh} = viewport.getSize();
@@ -172,6 +176,57 @@ export class Criteria {
       vh
     );
   }
+}
+
+/**
+ * Regex for the width-selection portion of a srcset, so for the
+ * general grammar: (URL [NUM[w|x]],)*, this should express "NUMw".
+ * E.g. in "image1.png 100w, image2.png 50w", this matches "100w" and "50w"
+ */
+const srcsetWidthRe = /\s+([0-9]+)w(,|[\S\s]*$)/g;
+
+/**
+ * Parses srcset partially to get the maximum defined intrinsic width.
+ * @param {!Element} img
+ * @return {number} -1 if no srcset, or if srcset is defined by dpr instead of
+ *   width. (This value is useful for comparisons, see getMaxNaturalDimensions.)
+ */
+export function getMaxWidthFromSrcset(img) {
+  let max = -1;
+
+  const srcsetAttr = img.getAttribute('srcset');
+  if (srcsetAttr) {
+    let match;
+    while ((match = srcsetWidthRe.exec(srcsetAttr))) {
+      const width = parseInt(match[1], 10);
+      if (width > max) {
+        max = width;
+      }
+    }
+  }
+
+  return max;
+}
+
+/**
+ * Gets the maximum natural dimensions for an image with srcset.
+ * This is necessary when the browser selects a src that is not shrunk for its
+ * render size, but the srcset provides a different, higher resolution image
+ * that can be used in the lightbox.
+ * @param {!Element} img
+ * @return {{naturalWidth: number, naturalHeight: number}}
+ */
+export function getMaxNaturalDimensions(img) {
+  const {naturalWidth, naturalHeight} = img;
+  const ratio = naturalWidth / naturalHeight;
+  const maxWidthFromSrcset = getMaxWidthFromSrcset(img);
+  if (maxWidthFromSrcset > naturalWidth) {
+    return {
+      naturalWidth: maxWidthFromSrcset,
+      naturalHeight: maxWidthFromSrcset / ratio,
+    };
+  }
+  return {naturalWidth, naturalHeight};
 }
 
 /**
@@ -289,7 +344,7 @@ export class DocMetaAnnotations {
         const {textContent} = el;
         return (tryParseJson(textContent) || {})['@type'];
       })
-      .filter((typeOrUndefined) => typeOrUndefined);
+      .filter(Boolean);
   }
 
   /**
@@ -369,7 +424,7 @@ export function apply(ampdoc, element) {
       REQUIRED_EXTENSION
     );
 
-    element.dispatchCustomEvent(AutoLightboxEvents.NEWLY_SET);
+    dispatchCustomEvent(element, AutoLightboxEvents.NEWLY_SET);
 
     return element;
   });
@@ -383,16 +438,21 @@ export function apply(ampdoc, element) {
 export function runCandidates(ampdoc, candidates) {
   return candidates.map((candidate) =>
     whenLoaded(candidate).then(() => {
-      // <amp-img> will change the img's src inline data on unlayout and remove
-      // it from DOM, but a LOAD_END event would still be triggered afterwards.
-      if (candidate.signals().get(CommonSignals.UNLOAD)) {
-        return;
-      }
-      if (!Criteria.meetsAll(candidate)) {
-        return;
-      }
-      dev().info(TAG, 'apply', candidate);
-      return apply(ampdoc, candidate);
+      return measureIntersectionNoRoot(candidate).then(
+        ({boundingClientRect}) => {
+          // <amp-img> will change the img's src inline data on unlayout and
+          // remove it from DOM.
+          if (!candidate.signals().get(CommonSignals.LOAD_END)) {
+            return;
+          }
+          const {width, height} = boundingClientRect;
+          if (!Criteria.meetsAll(candidate, width, height)) {
+            return;
+          }
+          dev().info(TAG, 'apply', candidate);
+          return apply(ampdoc, candidate);
+        }
+      );
     }, NOOP)
   );
 }

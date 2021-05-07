@@ -16,7 +16,7 @@
 
 import {AMP_STORY_BOOKEND_COMPONENT_DATA} from './components/bookend-component-interface';
 import {Action, StateProperty, UIType} from '../amp-story-store-service';
-import {ActionTrust} from '../../../../src/action-constants';
+import {ActionTrust} from '../../../../src/core/constants/action-constants';
 import {AnalyticsVariable, getVariableService} from '../variable-service';
 import {BookendComponent} from './bookend-component';
 import {CSS} from '../../../../build/amp-story-bookend-1.0.css';
@@ -27,23 +27,20 @@ import {
 } from '../amp-story-share';
 import {DraggableDrawer} from '../amp-story-draggable-drawer';
 import {EventType, dispatch} from '../events';
-import {
-  HistoryState,
-  createShadowRootWithStyle,
-  getHistoryState,
-  setHistoryState,
-} from '../utils';
-import {Keys} from '../../../../src/utils/key-codes';
+import {HistoryState, getHistoryState, setHistoryState} from '../history';
+import {Keys} from '../../../../src/core/constants/key-codes';
 import {LocalizedStringId} from '../../../../src/localized-strings';
 import {Services} from '../../../../src/services';
 import {StoryAnalyticsEvent, getAnalyticsService} from '../story-analytics';
 import {closest, closestAncestorElementBySelector} from '../../../../src/dom';
+import {createShadowRootWithStyle} from '../utils';
 import {dev, devAssert, user, userAssert} from '../../../../src/log';
-import {dict} from '../../../../src/utils/object';
+import {dict} from '../../../../src/core/types/object';
 import {getAmpdoc} from '../../../../src/service';
 import {getJsonLd} from '../jsonld';
+import {getLocalizationService} from '../amp-story-localization-service';
 import {getRequestService} from '../amp-story-request-service';
-import {isArray} from '../../../../src/types';
+import {isArray} from '../../../../src/core/types';
 import {renderAsElement} from '../simple-template';
 import {toggle} from '../../../../src/style';
 
@@ -629,7 +626,7 @@ export class AmpStoryBookend extends DraggableDrawer {
       return;
     }
 
-    const localizationService = Services.localizationForDoc(this.element);
+    const localizationService = getLocalizationService(this.element);
     if (!localizationService) {
       user().error(TAG, 'Unable to fetch localization service.');
       return;

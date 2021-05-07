@@ -21,13 +21,12 @@ const {
   getLocalVendorConfig,
   urlToCachePath,
 } = require('./helpers');
-const {JSDOM} = require('jsdom');
 
 /**
  * Return local vendor config.
  *
  * @param {string} vendor
- * @return {Object}
+ * @return {Promise<Object>}
  */
 async function getVendorConfig(vendor) {
   return JSON.parse(await getLocalVendorConfig(vendor));
@@ -41,11 +40,11 @@ async function getVendorConfig(vendor) {
  *
  * @param {Element} tag
  * @param {Object} script
- * @return {Object}
+ * @return {Promise<Object>}
  */
 async function maybeMergeAndRemoveVendorConfig(tag, script) {
-  if (tag.hasAttribute('type')) {
-    const vendor = tag.getAttribute('type');
+  const vendor = tag.getAttribute('type');
+  if (vendor) {
     tag.removeAttribute('type');
     const vendorConfig = await getVendorConfig(vendor);
     // TODO (micajuineho) replace with analytics/config.js merge objects
@@ -65,6 +64,7 @@ async function maybeMergeAndRemoveVendorConfig(tag, script) {
 async function alterAnalyticsTags(url, version, extraUrlParams) {
   const cachePath = urlToCachePath(url, version);
   const document = fs.readFileSync(cachePath);
+  const {JSDOM} = await import('jsdom'); // Lazy-imported to speed up task loading.
   const dom = new JSDOM(document);
 
   const analyticsTags = Array.from(
@@ -77,9 +77,8 @@ async function alterAnalyticsTags(url, version, extraUrlParams) {
       tag.removeChild(scriptTag);
       script = JSON.parse(scriptTag./*OK*/ innerHTML);
     }
-    script = Object.assign(script, {
-      extraUrlParams,
-    });
+    script.extraUrlParams = script.extraUrlParams || {};
+    Object.assign(script.extraUrlParams, extraUrlParams);
     script = await maybeMergeAndRemoveVendorConfig(tag, script);
     const newScriptTag = dom.window.document.createElement('script');
     newScriptTag.textContent = JSON.stringify(script);
@@ -92,20 +91,31 @@ async function alterAnalyticsTags(url, version, extraUrlParams) {
 
 /**
  * Rewrite analytics configs for each document
- * downloaded from the analytics handler urls
+ * downloaded from the analytics or ads handler urls
  * @param {?Object} handlers
  * @return {Promise}
  */
-function rewriteAnalyticsConfig(handlers) {
-  const {urls, extraUrlParam} = handlers.find(
-    (handler) => handler.handlerName === 'analyticsHandler'
-  );
-  return Promise.all(
-    urls.flatMap((url) => [
+async function rewriteAnalyticsConfig(handlers) {
+  const handlerPromises = [];
+  handlers.forEach((handler) => {
+    const {handlerName, adsUrls, urls, extraUrlParam} = handler;
+    if (handlerName !== 'analyticsHandler' && handlerName !== 'adsHandler') {
+      return;
+    }
+
+    if (adsUrls) {
+      urls.push(...adsUrls);
+    }
+
+    const handlerPromise = urls.flatMap((url) => [
       alterAnalyticsTags(url, CONTROL, extraUrlParam),
       alterAnalyticsTags(url, EXPERIMENT, extraUrlParam),
-    ])
-  );
+    ]);
+
+    handlerPromises.push(handlerPromise);
+  });
+
+  return Promise.all(handlerPromises);
 }
 
 module.exports = rewriteAnalyticsConfig;

@@ -20,16 +20,12 @@ import {
   getStoreService,
 } from './amp-story-store-service';
 import {Layout} from '../../../src/layout';
-import {assertHttpsUrl} from '../../../src/url';
-import {
-  closest,
-  closestAncestorElementBySelector,
-  copyChildren,
-  removeChildren,
-} from '../../../src/dom';
+import {closest, copyChildren, removeChildren} from '../../../src/dom';
 import {dev, user} from '../../../src/log';
+import {getStoryAttributeSrc} from './utils';
 import {htmlFor} from '../../../src/static-template';
-import {isArray, isObject} from '../../../src/types';
+import {isArray, isObject} from '../../../src/core/types';
+
 import {parseJson} from '../../../src/json';
 import {setImportantStyles} from '../../../src/style';
 
@@ -115,7 +111,7 @@ export class AmpStoryAccess extends AMP.BaseElement {
 
     this.element.appendChild(drawerEl);
 
-    this.whitelistActions_();
+    this.allowlistActions_();
 
     this.initializeListeners_();
   }
@@ -220,7 +216,11 @@ export class AmpStoryAccess extends AMP.BaseElement {
       case Type.BLOCKING:
         const drawerEl = getBlockingTemplate(this.element);
 
-        const logoSrc = this.getLogoSrc_();
+        const logoSrc = getStoryAttributeSrc(
+          this.element,
+          'publisher-logo-src',
+          /* warn */ true
+        );
 
         if (logoSrc) {
           const logoEl = dev().assertElement(
@@ -244,29 +244,7 @@ export class AmpStoryAccess extends AMP.BaseElement {
   }
 
   /**
-   * Retrieves the publisher-logo-src set on the <amp-story> element, and
-   * validates it's a valid https or relative URL.
-   * @return {?string}
-   * @private
-   */
-  getLogoSrc_() {
-    const storyEl = dev().assertElement(
-      closestAncestorElementBySelector(this.element, 'AMP-STORY')
-    );
-    const logoSrc = storyEl && storyEl.getAttribute('publisher-logo-src');
-
-    logoSrc
-      ? assertHttpsUrl(logoSrc, storyEl, 'publisher-logo-src')
-      : user().warn(
-          TAG,
-          'Expected "publisher-logo-src" attribute on <amp-story>'
-        );
-
-    return logoSrc;
-  }
-
-  /**
-   * Whitelists the <amp-access> actions.
+   * Allowlists the <amp-access> actions.
    * Depending on the publisher configuration, actions can be:
    *   - login
    *   - login-<namespace>
@@ -275,10 +253,10 @@ export class AmpStoryAccess extends AMP.BaseElement {
    * Publishers can provide one (object) or multiple (array) configurations,
    * identified by their "namespace" property.
    * Each configuration can have one or multiple login URLs, called "type".
-   * All the namespace/type pairs have to be whitelisted.
+   * All the namespace/type pairs have to be allowlisted.
    * @private
    */
-  whitelistActions_() {
+  allowlistActions_() {
     const accessEl = dev().assertElement(
       this.win.document.getElementById('amp-access'),
       'Cannot find the amp-access configuration'
@@ -314,18 +292,18 @@ export class AmpStoryAccess extends AMP.BaseElement {
       }
     });
 
-    this.storeService_.dispatch(Action.ADD_TO_ACTIONS_WHITELIST, actions);
+    this.storeService_.dispatch(Action.ADD_TO_ACTIONS_ALLOWLIST, actions);
   }
 
   /**
-   * Whitelists an action for the given namespace / type pair.
+   * Allowlists an action for the given namespace / type pair.
    * @param {string=} namespace
    * @param {string=} type
    * @return {*} TODO(#23582): Specify return type
    * @private
    */
   getActionObject_(namespace = undefined, type = undefined) {
-    const method = ['login', namespace, type].filter((s) => !!s).join('-');
+    const method = ['login', namespace, type].filter(Boolean).join('-');
     return {tagOrTarget: 'SCRIPT', method};
   }
 }

@@ -20,6 +20,7 @@ tags: {  # amp-inline-gallery
   extension_spec: {
     name: "amp-inline-gallery"
     version: "0.1"
+    version: "1.0"
     version: "latest"
   }
   attr_lists: "common-extension-attrs"
@@ -29,7 +30,7 @@ tags: {  # <amp-inline-gallery>
   tag_name: "AMP-INLINE-GALLERY"
   requires_extension: "amp-inline-gallery"
   attr_lists: "extended-amp-global"
-  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery"
+  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery/"
   amp_layout: {
     supported_layouts: CONTAINER
   }
@@ -40,7 +41,7 @@ tags: {  # <amp-inline-gallery-pagination>
   spec_name: "amp-inline-gallery-pagination"
   requires_extension: "amp-inline-gallery"
   attr_lists: "extended-amp-global"
-  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery"
+  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery/"
   mandatory_ancestor: "AMP-INLINE-GALLERY"
   amp_layout: {
     supported_layouts: FILL
@@ -62,7 +63,7 @@ tags: {  # <amp-inline-gallery-pagination inset>
     mandatory: true
   }
   attr_lists: "extended-amp-global"
-  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery"
+  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery/"
   mandatory_ancestor: "AMP-INLINE-GALLERY"
   amp_layout: {
     supported_layouts: NODISPLAY
@@ -76,19 +77,25 @@ tags: {  # <amp-inline-gallery-thumbnails>
     name: "aspect-ratio-height"
     # Non-zero number
     value_regex: "\\d+(\\.\\d+)?"
-    blacklisted_value_regex: "^0+(\\.0+)?$"
+    disallowed_value_regex: "^0+(\\.0+)?$"
     trigger: {
       also_requires_attr: "aspect-ratio-width"
     }
   }
   attrs: {
-    name: "aspect-ratio-width"
+    name: "aspect-ratio-width" # 0.1 only
     # Non-zero number
     value_regex: "\\d+(\\.\\d+)?"
-    blacklisted_value_regex: "^0+(\\.0+)?$"
+    disallowed_value_regex: "^0+(\\.0+)?$"
     trigger: {
       also_requires_attr: "aspect-ratio-height"
     }
+  }
+  attrs: {
+    name: "aspect-ratio" # 1.0 only
+    # Non-zero number
+    value_regex: "\\d+(\\.\\d+)?"
+    disallowed_value_regex: "^0+(\\.0+)?$"
   }
   attrs: {
     name: "loop"
@@ -96,7 +103,7 @@ tags: {  # <amp-inline-gallery-thumbnails>
     value: "false"
   }
   attr_lists: "extended-amp-global"
-  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery"
+  spec_url: "https://amp.dev/documentation/components/amp-inline-gallery/"
   mandatory_ancestor: "AMP-INLINE-GALLERY"
   amp_layout: {
     supported_layouts: FILL

@@ -35,6 +35,19 @@ export const MIN_VISIBILITY_RATIO_FOR_AUTOPLAY = 0.5;
  */
 export class VideoInterface {
   /**
+   * See `BaseElement`.
+   * @return {!./utils/signals.Signals}
+   */
+  signals() {}
+
+  /**
+   * See `BaseElement`.
+   * @param {function()} unusedMutator
+   * @return {!Promise}
+   */
+  mutateElementSkipRemeasure(unusedMutator) {}
+
+  /**
    * Whether the component supports video playback in the current platform.
    * If false, component will be not treated as a video component.
    * @return {boolean}
@@ -185,13 +198,19 @@ export class VideoInterface {
   seekTo(unusedTimeSeconds) {}
 }
 
+/** @type {!AmpElement} */
+VideoInterface.prototype.element;
+
+/** @type {!Window} */
+VideoInterface.prototype.win;
+
 /**
  * Attributes
  *
  * Components implementing the VideoInterface are expected to support
  * the following attributes.
  *
- * @const {!Object<string, string>}
+ * @enum {string}
  */
 export const VideoAttributes = {
   /**
@@ -249,7 +268,7 @@ export const VideoAttributes = {
  * Components implementing the VideoInterface are expected to dispatch
  * the following DOM events.
  *
- * @const {!Object<string, string>}
+ * @enum {string}
  */
 export const VideoEvents = {
   /**
@@ -280,6 +299,27 @@ export const VideoEvents = {
    * @event loadedmetadata
    */
   LOADEDMETADATA: 'loadedmetadata',
+
+  /**
+   * loadeddata
+   *
+   * Fired when the user agent can render the media for the first time.
+   *
+   * @event loadeddata
+   */
+  LOADEDDATA: 'loadeddata',
+
+  /**
+   * play
+   *
+   * Fired when the video plays (either because of autoplay or the play method).
+   *
+   * Note: Because this event was not originally present in this interface, we
+   * cannot rely on all all implementations to emit it.
+   *
+   * @event play
+   */
+  PLAY: 'play',
 
   /**
    * playing
@@ -331,8 +371,7 @@ export const VideoEvents = {
   /**
    * amp:video:visibility
    *
-   * Fired when the video's visibility changes. Normally fired
-   * from `viewportCallback`.
+   * Fired when the video's visibility changes.
    *
    * @event amp:video:visibility
    * @property {boolean} visible Whether the video player is visible or not.
@@ -391,7 +430,7 @@ export let PlayingStateDef;
  * Internal playing states used to distinguish between video playing on user's
  * command and videos playing automatically
  *
- * @const {!Object<string, PlayingStateDef>}
+ * @enum {string}
  */
 export const PlayingStates = {
   /**
@@ -546,13 +585,13 @@ export function isDockable(element) {
 /** @enum {string} */
 export const VideoServiceSignals = {
   USER_INTERACTED: 'user-interacted',
-  AUTOPLAY_DELEGATED: 'autoplay-delegated',
+  PLAYBACK_DELEGATED: 'playback-delegated',
 };
 
 /** @param {!AmpElement|!VideoOrBaseElementDef} video */
 export function delegateAutoplay(video) {
   whenUpgradedToCustomElement(dev().assertElement(video)).then((el) => {
-    el.signals().signal(VideoServiceSignals.AUTOPLAY_DELEGATED);
+    el.signals().signal(VideoServiceSignals.PLAYBACK_DELEGATED);
   });
 }
 

@@ -22,7 +22,7 @@ import {
   UrlReplacementPolicy,
   batchFetchJsonFor,
 } from '../../../src/batched-json';
-import {VisibilityState} from '../../../src/visibility-state';
+import {VisibilityState} from '../../../src/core/constants/visibility-state';
 import {
   childElementByAttr,
   childElementsByTag,
@@ -33,8 +33,8 @@ import {
   scopedQuerySelector,
 } from '../../../src/dom';
 import {dev, devAssert, user, userAssert} from '../../../src/log';
-import {escapeCssSelectorIdent} from '../../../src/css';
-import {findIndex} from '../../../src/utils/array';
+import {escapeCssSelectorIdent} from '../../../src/core/dom/css';
+import {findIndex, toArray} from '../../../src/core/types/array';
 import {htmlFor, htmlRefs} from '../../../src/static-template';
 import {installStylesForDoc} from '../../../src/style-installer';
 import {
@@ -43,7 +43,7 @@ import {
   parseSchemaImage,
 } from '../../../src/mediasession-helper';
 import {setStyles, toggle} from '../../../src/style';
-import {toArray} from '../../../src/types';
+
 import {triggerAnalyticsEvent} from '../../../src/analytics';
 import {tryParseJson} from '../../../src/json';
 import {validatePage, validateUrl} from './utils';
@@ -82,6 +82,9 @@ export class NextPageService {
      */
     this.viewport_ = Services.viewportForDoc(ampdoc);
 
+    /** @private {!../../../src/service/viewer-interface.ViewerInterface} */
+    this.viewer_ = Services.viewerForDoc(ampdoc);
+
     /**
      * @private
      * @const {!../../../src/service/mutator-interface.MutatorInterface}
@@ -89,7 +92,7 @@ export class NextPageService {
     this.mutator_ = Services.mutatorForDoc(ampdoc);
 
     /** @private @const {!../../../src/service/template-impl.Templates} */
-    this.templates_ = Services.templatesFor(this.win_);
+    this.templates_ = Services.templatesForDoc(ampdoc);
 
     /** @private {?Element} */
     this.separator_ = null;
@@ -198,12 +201,17 @@ export class NextPageService {
 
     // Create a reference to the host page
     this.hostPage_ = this.createHostPage();
+
+    // Set the current title page as the host page so we don't do replaceState and
+    // trigger `amp-next-page-scroll` event (in `setPageTitle` method) when
+    // next page is not even displayed (issue #33404).
+    this.currentTitlePage_ = this.hostPage_;
+
     this.toggleHiddenAndReplaceableElements(this.doc_);
     // Have the recommendation box be always visible
     insertAtStart(this.host_, this.recBox_);
 
     this.history_ = Services.historyForDoc(this.ampdoc_);
-    this.initializeHistory();
 
     this.navigation_ = Services.navigationForDoc(this.ampdoc_);
 
@@ -233,11 +241,31 @@ export class NextPageService {
       // Mark the page as ready
       this.readyResolver_();
     };
-    this.initializePageQueue_().then(fin, fin);
+    this.whenFirstScroll_()
+      .then(() => this.initializePageQueue_())
+      .then(fin, fin);
 
     this.getHost_().classList.add(NEXT_PAGE_CLASS);
 
     return this.readyPromise_;
+  }
+
+  /**
+   * Resolve when the document scrolls for the first time or loads in
+   * scrolled position.
+   * @return {!Promise}
+   * @private
+   */
+  whenFirstScroll_() {
+    return new Promise((resolve) => {
+      if (this.viewport_.getScrollTop() != 0) {
+        return resolve();
+      }
+      const unlisten = this.viewport_.onScroll(() => {
+        resolve();
+        unlisten();
+      });
+    });
   }
 
   /**
@@ -457,17 +485,9 @@ export class NextPageService {
       /** @type {!JsonObject} */ ({
         'title': title,
         'url': url,
-      })
+      }),
+      /** enableDataVars */ false
     );
-  }
-
-  /**
-   * Adds an initial entry in history that sub-pages can
-   * replace when they become visible
-   */
-  initializeHistory() {
-    const {title, url} = this.hostPage_;
-    this.history_.push(undefined /** opt_onPop */, {title, url});
   }
 
   /**
@@ -526,6 +546,20 @@ export class NextPageService {
   }
 
   /**
+   * Forward the allowlisted capabilities from the viewer
+   * to the multidoc's ampdocs (i.e. CID), so they know
+   * the viewer supports it for the multidoc.
+   * @return {?string}
+   */
+  getCapabilities_() {
+    const hasCidCapabilities = this.viewer_.hasCapability('cid');
+    if (hasCidCapabilities) {
+      return 'cid';
+    }
+    return null;
+  }
+
+  /**
    * Appends the given document to the host page and installs
    * a visibility observer to monitor it
    * @param {!Page} page
@@ -573,9 +607,10 @@ export class NextPageService {
       const amp = this.multidocManager_.attachShadowDoc(
         shadowRoot,
         content,
-        '',
+        page.url,
         {
           visibilityState: VisibilityState.PRERENDER,
+          cap: this.getCapabilities_(),
         }
       );
 
@@ -650,7 +685,7 @@ export class NextPageService {
     toArray(doc.querySelectorAll('amp-next-page')).forEach((el) => {
       if (this.hasDeepParsing_) {
         const pages = this.getInlinePages_(el);
-        this.queuePages_(pages);
+        this.fetchAndQueuePages_(pages);
       }
       removeElement(el);
     });
@@ -761,7 +796,7 @@ export class NextPageService {
   initializePageQueue_() {
     const inlinePages = this.getInlinePages_(this.getHost_());
     if (inlinePages.length) {
-      return this.queuePages_(inlinePages);
+      return this.fetchAndQueuePages_(inlinePages);
     }
 
     userAssert(
@@ -775,7 +810,7 @@ export class NextPageService {
         user().warn(TAG, 'Could not find recommendations');
         return Promise.resolve();
       }
-      return this.queuePages_(remotePages);
+      return this.fetchAndQueuePages_(remotePages);
     });
   }
 
@@ -806,9 +841,19 @@ export class NextPageService {
       }
     });
 
+    return Promise.resolve();
+  }
+
+  /**
+   * Add the provided page metadata into the queue of
+   * pages to fetch then fetches again
+   * @param {!Array<!./page.PageMeta>} pages
+   * @return {!Promise}
+   */
+  fetchAndQueuePages_(pages) {
     // To be safe, if the pages were parsed after the user
-    // finished scrolling
-    return this.maybeFetchNext();
+    // finished scrolling, we fetch again
+    return this.queuePages_(pages).then(() => this.maybeFetchNext());
   }
 
   /**
@@ -1052,7 +1097,8 @@ export class NextPageService {
           /** @type {!JsonObject} */ ({
             'title': page.title,
             'url': page.url,
-          })
+          }),
+          /** enableDataVars */ false
         );
         const a2a = this.navigation_.navigateToAmpUrl(
           page.url,

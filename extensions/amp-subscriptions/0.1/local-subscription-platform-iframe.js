@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import {Deferred} from '../../../src/utils/promise';
+import {Deferred} from '../../../src/core/data-structures/promise';
 import {Entitlement} from './entitlement';
 import {LocalSubscriptionBasePlatform} from './local-subscription-platform-base';
 import {Messenger} from '../../amp-access/0.1/iframe-api/messenger';
 import {assertHttpsUrl, parseUrlDeprecated} from '../../../src/url';
 import {devAssert, userAssert} from '../../../src/log';
-import {isArray} from '../../../src/types';
+import {isArray} from '../../../src/core/types';
 import {parseJson} from '../../../src/json';
 import {toggle} from '../../../src/style';
 
@@ -162,11 +162,10 @@ export class LocalSubscriptionIframePlatform extends LocalSubscriptionBasePlatfo
   /**
    * @param {string} cmd
    * @param {?Object} unusedPayload
-   * @return {*}
    * @private
    */
   handleCommand_(cmd, unusedPayload) {
-    if (cmd == 'connect') {
+    if (cmd === 'connect') {
       // First ever message. Indicates that the receiver is listening.
       this.configPromise_.then((configJson) => {
         this.messenger_
@@ -182,7 +181,6 @@ export class LocalSubscriptionIframePlatform extends LocalSubscriptionBasePlatfo
             }
           });
       });
-      return;
     }
   }
 }

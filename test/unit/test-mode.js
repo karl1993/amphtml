@@ -29,28 +29,6 @@ describe('getMode', () => {
     return win;
   }
 
-  it('CDN - lite mode on', () => {
-    const url =
-      'https://cdn.ampproject.org/v/www.example.com/amp.html?amp_js_v=5&amp_lite#origin=https://www.google.com';
-    expect(getMode(getWin(url)).lite).to.be.true;
-  });
-
-  it('CDN - lite mode off', () => {
-    const url =
-      'https://cdn.ampproject.org/v/www.example.com/amp.html?amp_js_v=5#origin=https://www.google.com';
-    expect(getMode(getWin(url)).lite).to.be.false;
-  });
-
-  it('Origin - lite mode on', () => {
-    const url = 'https://www.example.com/amp.html?amp_lite';
-    expect(getMode(getWin(url)).lite).to.be.true;
-  });
-
-  it('Origin - lite mode off', () => {
-    const url = 'https://www.example.com/amp.html';
-    expect(getMode(getWin(url)).lite).to.be.false;
-  });
-
   it('should support different html formats for development', () => {
     let url = 'https://www.amp-site.org#development=1';
     expect(getMode(getWin(url)).development).to.be.true;
@@ -79,44 +57,20 @@ describe('getRtvVersion', () => {
     resetRtvVersionForTesting();
   });
 
-  function getFreshMode(win, prop) {
-    delete win.__AMP_MODE;
-    return getMode(win)[prop];
-  }
-
   it('should default to version', () => {
     // $internalRuntimeVersion$ doesn't get replaced during test
-    expect(getRtvVersionForTesting(window, true)).to.equal(
-      '$internalRuntimeVersion$'
-    );
-    expect(getRtvVersionForTesting(window, false)).to.equal(
+    expect(getRtvVersionForTesting(window)).to.equal(
       '01$internalRuntimeVersion$'
     );
   });
 
-  it('should use window.AMP_CONFIG.v if not in dev mode', () => {
+  it('should use window.AMP_CONFIG.v', () => {
     const win = {
       AMP_CONFIG: {
         v: '12345',
       },
       location: parseUrlDeprecated('https://acme.org/doc1'),
     };
-    expect(getRtvVersionForTesting(win, true)).to.equal(
-      '$internalRuntimeVersion$'
-    );
-    expect(getRtvVersionForTesting(win, false)).to.equal('12345');
-    expect(getFreshMode(win, 'version')).to.equal('$internalRuntimeVersion$');
-    resetRtvVersionForTesting();
-    expect(getFreshMode(win, 'rtvVersion')).to.equal('12345');
-
-    delete win.AMP_CONFIG;
-    expect(getRtvVersionForTesting(win, false)).to.equal(
-      '01$internalRuntimeVersion$'
-    );
-    expect(getFreshMode(win, 'version')).to.equal('$internalRuntimeVersion$');
-    resetRtvVersionForTesting();
-    expect(getFreshMode(win, 'rtvVersion')).to.equal(
-      '01$internalRuntimeVersion$'
-    );
+    expect(getRtvVersionForTesting(win)).to.equal('12345');
   });
 });

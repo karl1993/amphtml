@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {ActionTrust} from '../../../src/action-constants';
+import {ActionTrust} from '../../../src/core/constants/action-constants';
 import {FilterType} from './filters/filter';
 import {HostServices} from '../../../src/inabox/host-services';
 import {
@@ -31,7 +31,7 @@ import {getData} from '../../../src/event-helper';
 import {getMode} from '../../../src/mode';
 import {getTopWindow} from '../../../src/service';
 import {isJsonScriptTag, openWindowDialog} from '../../../src/dom';
-import {isObject} from '../../../src/types';
+import {isObject} from '../../../src/core/types';
 import {makeClickDelaySpec} from './filters/click-delay';
 import {makeInactiveElementSpec} from './filters/inactive-element';
 import {parseJson} from '../../../src/json';
@@ -189,7 +189,7 @@ export class AmpAdExit extends AMP.BaseElement {
       'CLICK_Y': () => event.clientY,
     };
     const replacements = Services.urlReplacementsForDoc(this.element);
-    const whitelist = {
+    const allowlist = {
       'RANDOM': true,
       'CLICK_X': true,
       'CLICK_Y': true,
@@ -266,16 +266,11 @@ export class AmpAdExit extends AMP.BaseElement {
             ? args[customVarName]
             : customVar.defaultValue;
         };
-        whitelist[customVarName] = true;
+        allowlist[customVarName] = true;
       }
     }
     return (url) =>
-      replacements.expandUrlSync(
-        url,
-        substitutionFunctions,
-        undefined /* opt_collectVars */,
-        whitelist
-      );
+      replacements.expandUrlSync(url, substitutionFunctions, allowlist);
   }
 
   /**
@@ -380,7 +375,7 @@ export class AmpAdExit extends AMP.BaseElement {
           vars: target['vars'] || {},
           filters: (target['filters'] || [])
             .map((f) => this.userFilters_[f])
-            .filter((f) => f),
+            .filter(Boolean),
           behaviors: target['behaviors'] || {},
         };
         // Build a map of {vendor, origin} for 3p custom variables in the config

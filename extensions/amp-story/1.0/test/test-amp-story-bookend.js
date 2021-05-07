@@ -21,6 +21,7 @@ import {AnalyticsVariable, getVariableService} from '../variable-service';
 import {ArticleComponent} from '../bookend/components/article';
 import {CtaLinkComponent} from '../bookend/components/cta-link';
 import {LandscapeComponent} from '../bookend/components/landscape';
+import {LocalizationService} from '../../../../src/service/localization';
 import {PortraitComponent} from '../bookend/components/portrait';
 import {Services} from '../../../../src/services';
 import {StoryAnalyticsEvent, getAnalyticsService} from '../story-analytics';
@@ -52,6 +53,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
       'domainName': 'example.com',
       'url': 'http://example.com/article.html',
       'image': 'http://placehold.it/256x128',
+      'alt': 'test',
     },
     {
       'type': 'portrait',
@@ -60,6 +62,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
       'domainName': 'example.com',
       'url': 'http://example.com/article.html',
       'image': 'http://placehold.it/256x128',
+      'alt': 'test',
     },
     {
       'type': 'cta-link',
@@ -85,6 +88,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
       'url': 'http://example.com/article.html',
       'category': 'astronomy',
       'image': 'http://placehold.it/256x128',
+      'alt': 'test',
     },
     {
       'type': 'textbox',
@@ -126,6 +130,10 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
   beforeEach(() => {
     win = env.win;
     doc = win.document;
+    const localizationService = new LocalizationService(win.document.body);
+    env.sandbox
+      .stub(Services, 'localizationForDoc')
+      .returns(localizationService);
     storyElem = doc.createElement('amp-story');
     storyElem.appendChild(doc.createElement('amp-story-page'));
     doc.body.appendChild(storyElem);
@@ -166,6 +174,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
           'title': 'This is an example article',
           'url': 'http://example.com/article.html',
           'image': 'http://placehold.it/256x128',
+          'alt': 'test',
         },
         {
           'type': 'portrait',
@@ -173,6 +182,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
           'category': 'This is an example article',
           'url': 'http://example.com/article.html',
           'image': 'http://placehold.it/256x128',
+          'alt': 'test',
         },
         {
           'type': 'cta-link',
@@ -197,6 +207,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
           'url': 'http://example.com/article.html',
           'category': 'astronomy',
           'image': 'http://placehold.it/256x128',
+          'alt': 'test',
         },
         {
           'type': 'textbox',
@@ -237,6 +248,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
           'title': 'This is an example article',
           'url': 'http://example.com/article.html',
           'image': 'http://placehold.it/256x128',
+          'alt': 'test',
         },
         {
           'type': 'portrait',
@@ -245,6 +257,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
           'domainName': 'example.com',
           'url': 'http://example.com/article.html',
           'image': 'http://placehold.it/256x128',
+          'alt': 'test',
         },
         {
           'type': 'cta-link',
@@ -269,6 +282,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
           'url': 'http://example.com/article.html',
           'category': 'astronomy',
           'image': 'http://placehold.it/256x128',
+          'alt': 'test',
         },
         {
           'type': 'textbox',
@@ -475,6 +489,7 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
           'domainName': 'example.com',
           'url': 'http://example.com/article.html',
           'image': 'http://placehold.it/256x128',
+          'alt': 'test',
         },
       ],
     };
@@ -952,6 +967,37 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
         'https://www.nationalgeographic.com/amp-stories/assets/01-iconic-american-destinations.jpg'
       );
     });
+
+    it('should have an empty alt attribute on image if no alt is specified', () => {
+      const noAltComponent = {
+        url: 'http://example.com/small.html',
+        domainName: 'example.com',
+        type: 'small',
+        title: 'This image has no alt attribute',
+        image: 'http://placehold.it/256x128',
+      };
+
+      const small = new ArticleComponent();
+
+      const noAlt = small.buildElement(noAltComponent, win, {position: 0});
+      expect(noAlt.querySelector('img').alt).to.equal('');
+    });
+
+    it('should propagate alt attribute if specified', () => {
+      const textAltComponent = {
+        url: 'http://example.com/small.html',
+        domainName: 'example.com',
+        type: 'small',
+        title: 'This image has text in its alt attribute',
+        image: 'http://placehold.it/256x128',
+        alt: 'test',
+      };
+
+      const small = new ArticleComponent();
+
+      const noAlt = small.buildElement(textAltComponent, win, {position: 0});
+      expect(noAlt.querySelector('img').alt).to.equal('test');
+    });
   });
 
   describe('landscape component', () => {
@@ -1155,6 +1201,39 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
         'https://www.nationalgeographic.com/amp-stories/assets/01-iconic-american-destinations.jpg'
       );
     });
+
+    it('should have an empty alt attribute on image if no alt is specified', () => {
+      const noAltComponent = {
+        url: 'http://example.com/landscape.html',
+        domainName: 'example.com',
+        type: 'landscape',
+        title: 'This image has no alt attribute',
+        image: 'http://placehold.it/256x128',
+      };
+
+      const landscape = new LandscapeComponent();
+
+      const noAlt = landscape.buildElement(noAltComponent, win, {position: 0});
+      expect(noAlt.querySelector('img').alt).to.equal('');
+    });
+
+    it('should propagate alt attribute if specified', () => {
+      const textAltComponent = {
+        url: 'http://example.com/landscape.html',
+        domainName: 'example.com',
+        type: 'landscape',
+        title: 'This image has text in its alt attribute',
+        image: 'http://placehold.it/256x128',
+        alt: 'test',
+      };
+
+      const landscape = new LandscapeComponent();
+
+      const noAlt = landscape.buildElement(textAltComponent, win, {
+        position: 0,
+      });
+      expect(noAlt.querySelector('img').alt).to.equal('test');
+    });
   });
 
   describe('portrait component', () => {
@@ -1347,6 +1426,39 @@ describes.fakeWin('amp-story-bookend', {win: {location}, amp: true}, (env) => {
       expect(el.querySelector('img').src).to.equal(
         'https://www.nationalgeographic.com/amp-stories/assets/01-iconic-american-destinations.jpg'
       );
+    });
+
+    it('should have an empty alt attribute on image if no alt is specified', () => {
+      const noAltComponent = {
+        url: 'http://example.com/portrait.html',
+        domainName: 'example.com',
+        type: 'portrait',
+        title: 'This image has no alt attribute',
+        image: 'http://placehold.it/256x128',
+      };
+
+      const portrait = new PortraitComponent();
+
+      const noAlt = portrait.buildElement(noAltComponent, win, {position: 0});
+      expect(noAlt.querySelector('img').alt).to.equal('');
+    });
+
+    it('should propagate alt attribute if specified', () => {
+      const textAltComponent = {
+        url: 'http://example.com/portrait.html',
+        domainName: 'example.com',
+        type: 'portrait',
+        title: 'This image has text in its alt attribute',
+        image: 'http://placehold.it/256x128',
+        alt: 'test',
+      };
+
+      const portrait = new PortraitComponent();
+
+      const noAlt = portrait.buildElement(textAltComponent, win, {
+        position: 0,
+      });
+      expect(noAlt.querySelector('img').alt).to.equal('test');
     });
   });
 });

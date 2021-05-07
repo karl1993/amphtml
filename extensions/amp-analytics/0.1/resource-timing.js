@@ -15,9 +15,8 @@
  */
 
 import {ExpansionOptions, variableServiceForDoc} from './variables';
-import {findIndex} from '../../../src/utils/array';
-import {isObject} from '../../../src/types';
-import {parseUrlDeprecated} from '../../../src/url';
+import {findIndex} from '../../../src/core/types/array';
+import {isObject} from '../../../src/core/types';
 import {user} from '../../../src/log';
 
 /**
@@ -163,7 +162,7 @@ function entryToExpansionOptions(entry, name, format) {
  * @return {?string} The name of the entry, or null if no matching name exists.
  */
 function nameForEntry(entry, resourcesByHost) {
-  const url = parseUrlDeprecated(entry.name);
+  const url = entry.name;
   for (let i = 0; i < resourcesByHost.length; ++i) {
     const {hostPattern, resources} = resourcesByHost[i];
     if (!hostPattern.test(url.host)) {

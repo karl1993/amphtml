@@ -14,19 +14,24 @@
  * limitations under the License.
  */
 
-import {CONSENT_ITEM_STATE, ConsentInfoDef} from './consent-info';
-import {CONSENT_POLICY_STATE} from '../../../src/consent-state';
-import {Deferred} from '../../../src/utils/promise';
-import {Observable} from '../../../src/observable';
+import {
+  CONSENT_ITEM_STATE,
+  ConsentInfoDef,
+  PURPOSE_CONSENT_STATE,
+} from './consent-info';
+import {CONSENT_POLICY_STATE} from '../../../src/core/constants/consent-state';
+import {Deferred} from '../../../src/core/data-structures/promise';
+import {Observable} from '../../../src/core/data-structures/observable';
 import {getServicePromiseForDoc} from '../../../src/service';
-import {isFiniteNumber, isObject} from '../../../src/types';
-import {map} from '../../../src/utils/object';
+import {hasOwn, map} from '../../../src/core/types/object';
+import {isFiniteNumber} from '../../../src/types';
+import {isObject} from '../../../src/core/types';
 import {user, userAssert} from '../../../src/log';
 
 const CONSENT_STATE_MANAGER = 'consentStateManager';
 const TAG = 'consent-policy-manager';
 
-const WHITELIST_POLICY = {
+const ALLOWLIST_POLICY = {
   'default': true,
   '_till_responded': true,
   '_till_accepted': true,
@@ -76,6 +81,15 @@ export class ConsentPolicyManager {
 
     /** @private {?string} */
     this.consentString_ = null;
+
+    /** @private {?Object|undefined} */
+    this.consentMetadata_ = null;
+
+    /** @private {?Object|undefined} */
+    this.purposeConsents_ = null;
+
+    /** @private {?function()} */
+    this.tcfConsentChangeHandler_ = null;
   }
 
   /**
@@ -179,9 +193,17 @@ export class ConsentPolicyManager {
   consentStateChangeHandler_(info) {
     const state = info['consentState'];
     const consentStr = info['consentString'];
-    const {consentString_: prevConsentStr} = this;
+    const consentMetadata = info['consentMetadata'];
+    const purposeConsents = info['purposeConsents'];
+    const {
+      consentString_: prevConsentStr,
+      consentMetadata_: prevConsentMetadata,
+      purposeConsents_: prevPurposeConsents,
+    } = this;
 
     this.consentString_ = consentStr;
+    this.consentMetadata_ = consentMetadata;
+    this.purposeConsents_ = purposeConsents;
     if (state === CONSENT_ITEM_STATE.UNKNOWN) {
       // consent state has not been resolved yet.
       return;
@@ -200,12 +222,28 @@ export class ConsentPolicyManager {
       if (this.consentState_ === null) {
         this.consentState_ = CONSENT_ITEM_STATE.UNKNOWN;
       }
-      // consentString doesn't change with dismiss action
+      // None of the supplementary consent data changes with dismiss action
       this.consentString_ = prevConsentStr;
+      this.consentMetadata_ = prevConsentMetadata;
+      this.purposeConsents_ = prevPurposeConsents;
     } else {
       this.consentState_ = state;
     }
     this.consentStateChangeObservables_.fire(this.consentState_);
+    if (this.tcfConsentChangeHandler_) {
+      this.tcfConsentChangeHandler_();
+    }
+  }
+
+  /**
+   * Sets the handler that will be called when a consent change
+   * has been fired.
+   * @param {function()} callback
+   */
+  setOnPolicyChange(callback) {
+    if (!this.tcfConsentChangeHandler_) {
+      this.tcfConsentChangeHandler_ = callback;
+    }
   }
 
   /**
@@ -215,7 +253,7 @@ export class ConsentPolicyManager {
    */
   whenPolicyResolved(policyId) {
     // If customized policy is not supported
-    if (!WHITELIST_POLICY[policyId]) {
+    if (!ALLOWLIST_POLICY[policyId]) {
       user().error(
         TAG,
         'can not find policy %s, only predefined policies are supported',
@@ -237,7 +275,7 @@ export class ConsentPolicyManager {
    */
   whenPolicyUnblock(policyId) {
     // If customized policy is not supported
-    if (!WHITELIST_POLICY[policyId]) {
+    if (!ALLOWLIST_POLICY[policyId]) {
       user().error(
         TAG,
         'can not find policy %s, only predefined policies are supported',
@@ -270,20 +308,6 @@ export class ConsentPolicyManager {
   }
 
   /**
-   * Get gdprApplies value of a policy.
-   *
-   * @param {string} policyId
-   * @return {!Promise<?boolean>}
-   */
-  getGdprApplies(policyId) {
-    return this.whenPolicyResolved(policyId)
-      .then(() => this.ConsentStateManagerPromise_)
-      .then((manager) => {
-        return manager.getConsentInstanceGdprApplies();
-      });
-  }
-
-  /**
    * Get the consent string value of a policy. Return a promise that resolves
    * when the policy resolves.
    * @param {string} policyId
@@ -292,6 +316,42 @@ export class ConsentPolicyManager {
   getConsentStringInfo(policyId) {
     return this.whenPolicyResolved(policyId).then(() => {
       return this.consentString_;
+    });
+  }
+
+  /**
+   * Get the consent metadata value of a policy. Return a promise that resolves
+   * when the policy resolves.
+   * @param {string} policyId
+   * @return {!Promise<?Object|undefined>}
+   */
+  getConsentMetadataInfo(policyId) {
+    return this.whenPolicyResolved(policyId).then(() => {
+      return this.consentMetadata_;
+    });
+  }
+
+  /**
+   * Wait for initial consent information to be transmitted,
+   * then get consent state for this purpose.
+   *
+   * Note: Even if we have some intiial consent info, wait until all
+   * purposes have been potentially collected, then check.
+   * @param {!Array<string>} purposes
+   * @return {!Promise<boolean>}
+   */
+  whenPurposesUnblock(purposes) {
+    return this.ConsentStateManagerPromise_.then((manager) => {
+      // Wait for all purpose consents (collected through UI or update)
+      return manager.whenHasAllPurposeConsents();
+    }).then(() => {
+      if (!this.purposeConsents_) {
+        return false;
+      }
+      const shouldUnblock = (purpose) =>
+        hasOwn(this.purposeConsents_, purpose) &&
+        this.purposeConsents_[purpose] === PURPOSE_CONSENT_STATE.ACCEPTED;
+      return purposes.every(shouldUnblock);
     });
   }
 

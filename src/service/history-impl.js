@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import {Deferred, tryResolve} from '../utils/promise';
+import {Deferred, tryResolve} from '../core/data-structures/promise';
 import {Services} from '../services';
 import {dev, devAssert} from '../log';
-import {dict, map} from '../utils/object';
+import {dict, map} from '../core/types/object';
 import {getMode} from '../mode';
 import {
   getService,
@@ -143,17 +143,18 @@ export class History {
   }
 
   /**
-   * Requests navigation one step back. This request is only satisifed
-   * when the history has at least one step to go back in the context
-   * of this document.
+   * Requests navigation one step back. This first attempts to go back within
+   * the context of this document.
+   *
+   * @param {boolean=} navigate
    * @return {!Promise}
    */
-  goBack() {
+  goBack(navigate) {
     return this.enque_(() => {
-      if (this.stackIndex_ <= 0) {
-        // Nothing left to pop.
+      if (this.stackIndex_ <= 0 && !navigate) {
         return Promise.resolve();
       }
+
       // Pop the current state. The binding will ignore the request if
       // it cannot satisfy it.
       return this.binding_.pop(this.stackIndex_).then((historyState) => {

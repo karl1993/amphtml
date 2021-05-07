@@ -16,7 +16,7 @@
 
 import {ActionSource} from './action-source';
 import {CarouselEvents} from './carousel-events';
-import {debounce} from '../../../src/utils/rate-limit';
+import {debounce} from '../../../src/core/types/function';
 import {getDetail, listen, listenOnce} from '../../../src/event-helper';
 
 const MIN_AUTO_ADVANCE_INTERVAL = 1000;
@@ -81,6 +81,9 @@ export class AutoAdvance {
 
     /** @private {number} */
     this.maxAdvances_ = Number.POSITIVE_INFINITY;
+
+    /** @private {!../../../src/service/ampdoc-impl.AmpDoc} */
+    this.ampdoc_ = element.getAmpDoc();
 
     this.createDebouncedAdvance_(this.autoAdvanceInterval_);
     this.scrollContainer_.addEventListener(
@@ -214,6 +217,7 @@ export class AutoAdvance {
   shouldAutoAdvance_() {
     return (
       this.autoAdvance_ &&
+      this.ampdoc_.isVisible() &&
       !this.paused_ &&
       !this.stopped_ &&
       this.advances_ < this.maxAdvances_
